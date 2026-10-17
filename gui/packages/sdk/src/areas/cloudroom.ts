@@ -205,7 +205,7 @@ export interface CloudroomArea {
   updateEnvironment(change: CloudEnvironmentChange): Promise<CloudEnvironment>;
   autoDelete(signal?: AbortSignal): Promise<{ days: AutoDeleteDays }>;
   /** Lists, creates, changes, runs, or deletes cloud automations. */
-  automations(input: CloudAutomationRequest): Promise<{ automations?: CloudAutomation[]; automation?: CloudAutomation; ok?: boolean }>;
+  automations(input: CloudAutomationRequest): Promise<{ automations?: CloudAutomation[]; automation?: CloudAutomation; ok?: boolean; scheduler?: "core" | "cloud" | "none" }>;
   setAutoDelete(days: AutoDeleteDays): Promise<{ days: AutoDeleteDays }>;
   /** Names of API keys and tokens set in this Mac's login shell, never their values. */
   macVariables(signal?: AbortSignal): Promise<{ names: string[] }>;

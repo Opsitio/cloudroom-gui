@@ -75,3 +75,5 @@ The Loops panel's Review tab lists what loops did on their own in the last 7 day
 room-cli automation review [--all] [--json]
 room-cli automation review mark <itemId...> [--undo]
 ```
+
+Self-hosted Opsitio Core: the same `--cloud` commands use your configured Core connection without a Cloudroom account. Core must advertise the `automations` capability; older versions show an upgrade error. Loops re-prompt an existing thread in its current workspace. Use `--same-thread`; fresh-thread runs and preflight scripts are unsupported in this version. Cron supports every minute, with a five-second scheduler check. Core keeps schedules on disk and continues while the Mac is off. Unknown execution outcomes pause for review. Local loops keep using this Mac's scheduler.

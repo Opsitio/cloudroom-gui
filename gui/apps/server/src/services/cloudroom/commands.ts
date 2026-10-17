@@ -359,6 +359,44 @@ class CloudroomService {
     if (!saved) throw new ApiError(409, "cloudroom_thread_unstarted", "This cloud thread has not started yet.");
     return this.client(saved, wake);
   }
+
+  async automations(input: Record<string, unknown>): Promise<unknown> {
+    const saved = await this.savedConnection();
+    const selfHosted = Boolean(saved?.token && !saved.account);
+    if (!saved && input.action === "list") return { automations: [], scheduler: "none" };
+    let body = { ...input };
+    if (input.action === "create") {
+      const thread = typeof input.thread === "string" ? getThread(this.deps.db, input.thread) : null;
+      if (!thread || !isCloudThread(thread) || thread.archivedAt || thread.deletedAt) throw new ApiError(400, "cloud_automation", "Loops on Core need an open Cloud thread.");
+      const home = binding(this.deps.db, thread.id);
+      if (selfHosted) {
+        if (!home?.sessionId) throw new ApiError(409, "cloud_automation", "Send a message in this thread before creating its loop.");
+        await this.coreConnection(home, false);
+        body = { ...input, thread: thread.id, session: home.sessionId };
+      } else {
+        let root = thread;
+        for (let parent = root.parentThreadId ? getThread(this.deps.db, root.parentThreadId) : null; parent && isCloudThread(parent); parent = parent.parentThreadId ? getThread(this.deps.db, parent.parentThreadId) : null) root = parent;
+        body = { ...input, thread: root.id, ...(home?.sessionId ? { session: home.sessionId } : {}) };
+      }
+    }
+    if (!selfHosted) return this.sandboxes.automations(body);
+    const client = await this.client();
+    if ((await client.capabilities()).automations !== true) throw new ApiError(409, "core_scheduler_unavailable", "This Core does not support loops. Install the Opsitio Core scheduler build.");
+    if (input.action === "list" && typeof input.thread === "string") {
+      const home = binding(this.deps.db, input.thread);
+      if (!home?.sessionId) return { scheduler: "core", automations: [] };
+      await this.coreConnection(home, false);
+      delete body.thread;
+      body.session = home.sessionId;
+    }
+    const result = await client.automations(body);
+    const row = z.object({ id: z.string().uuid(), session_id: z.string(), thread_id: z.string() }).passthrough();
+    const answer = z.object({ automations: z.array(row).optional(), automation: row.optional(), ok: z.boolean().optional() }).parse(result);
+    const homes = this.deps.db.select({ threadId: cloudroomThreads.threadId, sessionId: cloudroomThreads.sessionId }).from(cloudroomThreads).where(eq(cloudroomThreads.coreUrl, saved!.url!)).all();
+    const bySession = new Map(homes.map(home => [home.sessionId, home.threadId]));
+    const map = (entry: z.infer<typeof row>) => ({ ...entry, thread_id: bySession.get(entry.session_id) ?? entry.thread_id });
+    return { ...answer, scheduler: "core", ...(answer.automations ? { automations: answer.automations.map(map) } : {}), ...(answer.automation ? { automation: map(answer.automation) } : {}) };
+  }
   followTeleport(threadId: string): void { void this.deliver(threadId).catch(() => {}); }
   private readonly leftParent = new Set<string>();
   /** A top-level thread in another thread's sandbox was a child there. Before its next work, Core stops reporting it
@@ -1464,6 +1502,9 @@ class CloudroomService {
     }
     this.enqueue(threadId, randomUUID(), "stop", {});
     this.enqueue(threadId, randomUUID(), "sleep", {});
+    if (saved.sessionId) void this.client(saved, false).then(async client => {
+      if ((await client.capabilities()).automations === true) await client.automations({ action: "archived", session: saved.sessionId });
+    }).catch(error => this.warn("The thread's Core loops could not be paused", error, { threadId }));
     void this.deliver(threadId).catch(() => {});
   }
 

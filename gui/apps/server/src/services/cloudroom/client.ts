@@ -565,6 +565,10 @@ export class CloudroomClient {
     return this.#json("/v1/capabilities", undefined, signal);
   }
 
+  automations(body: Record<string, unknown>) {
+    return this.#json("/v1/automations", body as Json);
+  }
+
   async workspace(id: string, signal?: AbortSignal): Promise<Workspace | null> {
     requestId(id);
     try {

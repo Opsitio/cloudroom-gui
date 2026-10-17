@@ -858,6 +858,9 @@ export function AutomationOverviewView({
   cloud?: {
     rows: readonly CloudAutomation[];
     actions: CloudAutomationActions;
+    error?: string | null;
+    scheduler?: string;
+    onRetry?: () => void;
   };
   review?: LoopReviewState;
 }) {
@@ -1120,7 +1123,7 @@ export function AutomationOverviewView({
       return (
         <section
           className="min-w-0"
-          aria-label={isCloud ? "Cloud" : "This Mac"}
+          aria-label={isCloud ? cloud?.scheduler === "core" ? "Your Core" : "Cloud" : "This Mac"}
         >
           <div className="flex items-center gap-2 pb-2 text-xs">
             <Icon
@@ -1132,7 +1135,7 @@ export function AutomationOverviewView({
               aria-hidden
             />
             <span className="text-sm font-medium text-foreground">
-              {isCloud ? "Cloud" : "This Mac"}
+              {isCloud ? cloud?.scheduler === "core" ? "Your Core" : "Cloud" : "This Mac"}
             </span>
             <span className="text-muted-foreground">{items.length}</span>
             <span className="ml-auto truncate text-muted-foreground/70">
@@ -1356,6 +1359,9 @@ export function AutomationOverviewView({
         </ResourceCollectionViewport>
       ) : (
         <ResourceCollectionViewport scrollId="automations-installed-results">
+          {cloud?.error ? (
+            <ResourceListState state="error" message={`Core / cloud loops: ${cloud.error}`} onRetry={cloud.onRetry} />
+          ) : null}
           {body}
         </ResourceCollectionViewport>
       )}
