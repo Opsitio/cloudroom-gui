@@ -4,8 +4,6 @@ import { toast } from "sonner";
 import type { automationRpcContract } from "./src/rpc.js";
 import type { AutomationAgentSummary } from "./src/rpc-types.js";
 
-// Cloud loops (ADR 0212) run on Cloudroom's servers and re-prompt a Cloud thread, even while this Mac is off.
-// Agents create them with `room-cli loop create --cloud`; the Overview shows, pauses, runs, and deletes them.
 export type CloudAutomation = {
   id: string;
   thread_id: string;
@@ -34,10 +32,15 @@ type Request =
 export function useCloudAutomations(): {
   rows: CloudAutomation[];
   actions: CloudAutomationActions;
+  error: string | null;
+  scheduler: string;
+  onRetry: () => void;
 } {
   const rpc = useRpc<typeof automationRpcContract>();
   const navigate = useBbNavigate();
   const [rows, setRows] = useState<CloudAutomation[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [scheduler, setScheduler] = useState("cloud");
   const call = useCallback(
     (request: Request) => rpc.call("cloud_automations", request),
     [rpc],
@@ -45,11 +48,14 @@ export function useCloudAutomations(): {
   const load = useCallback(
     () =>
       call({ action: "list" }).then(
-        (value) =>
+        (value) => {
+          setError(null);
+          setScheduler((value as { scheduler?: string }).scheduler ?? "cloud");
           setRows(
             (value as { automations?: CloudAutomation[] }).automations ?? [],
-          ),
-        () => setRows([]),
+          );
+        },
+        (reason: unknown) => setError(reason instanceof Error ? reason.message : String(reason)),
       ),
     [call],
   );
@@ -85,5 +91,5 @@ export function useCloudAutomations(): {
     }),
     [act, navigate],
   );
-  return { rows, actions };
+  return { rows, actions, error, scheduler, onRetry: () => void load() };
 }
